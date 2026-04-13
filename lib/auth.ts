@@ -8,7 +8,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers: [
     Resend({
-      from: "NervSync <hello@nervsync.com>",
+      from: "NervSync <hello@arisolutionsinc.com>",
     }),
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
