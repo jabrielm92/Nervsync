@@ -1,0 +1,255 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  name                String?
+  image               String?
+  emailVerified       DateTime?
+  onboardingComplete  Boolean   @default(false)
+  primaryGoal         String?
+  preferredDuration   Int       @default(10)
+  wakeTime            String?
+  bedTime             String?
+  timezone            String    @default("America/New_York")
+  stripeCustomerId    String?   @unique
+  subscriptionId      String?
+  subscriptionStatus  String    @default("trialing")
+  subscriptionPlan    String    @default("trial")
+  trialEndsAt         DateTime  @default(dbgenerated("NOW() + INTERVAL '7 days'"))
+  currentStreak       Int       @default(0)
+  longestStreak       Int       @default(0)
+  totalSessions       Int       @default(0)
+  totalMinutes        Int       @default(0)
+  level               Int       @default(1)
+  xp                  Int       @default(0)
+  checkins            Checkin[]
+  sessions            Session[]
+  scores              RegulationScore[]
+  journalEntries      JournalEntry[]
+  sleepLogs           SleepLog[]
+  coachMessages       CoachMessage[]
+  programEnrollments  ProgramEnrollment[]
+  glimmers            Glimmer[]
+  accounts            Account[]
+  authenticators      Authenticator[]
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  @@unique([identifier, token])
+}
+
+model Authenticator {
+  credentialID         String  @unique
+  userId               String
+  providerAccountId    String
+  credentialPublicKey  String
+  counter              Int
+  credentialDeviceType String
+  credentialBackedUp   Boolean
+  transports           String?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([userId, credentialID])
+}
+
+model Checkin {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  primaryState     String
+  intensity        Int
+  physicalSymptoms String[]
+  energyLevel      Int?
+  sleepQuality     Int?
+  mood             String?
+  contextTags      String[]
+  regulationScore  Int?
+  session          Session?
+  checkedInAt      DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  @@index([userId, checkedInAt(sort: Desc)])
+}
+
+model Session {
+  id                  String    @id @default(cuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkinId           String?   @unique
+  checkin             Checkin?  @relation(fields: [checkinId], references: [id])
+  title               String
+  description         String?
+  durationMinutes     Int
+  targetState         String
+  sessionType         String    @default("daily")
+  exercises           Json
+  startedAt           DateTime?
+  completedAt         DateTime?
+  completionPercent   Int?
+  completionRating    Int?
+  postSessionState    String?
+  postSessionIntensity Int?
+  feltShift           Boolean?
+  aiModel             String    @default("claude-sonnet-4-20250514")
+  aiPromptTokens      Int?
+  aiResponseTokens    Int?
+  createdAt           DateTime  @default(now())
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model Protocol {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  category         String
+  targetStates     String[]
+  description      String
+  instructions     String
+  durationSeconds  Int
+  difficulty       String   @default("beginner")
+  breathCues       Json?
+  scienceNote      String?
+  contraindications String?
+  audioUrl         String?
+  imageUrl         String?
+  isPremium        Boolean  @default(false)
+  sortOrder        Int      @default(0)
+  timesUsed        Int      @default(0)
+  avgRating        Float    @default(0)
+  createdAt        DateTime @default(now())
+  @@index([category])
+}
+
+model RegulationScore {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score                 Int
+  date                  DateTime @default(now()) @db.Date
+  checkinState          String?
+  checkinIntensity      Int?
+  sessionCompleted      Boolean  @default(false)
+  postSessionImprovement Int?
+  streakBonus           Int      @default(0)
+  sleepBonus            Int      @default(0)
+  createdAt             DateTime @default(now())
+  @@unique([userId, date])
+  @@index([userId, date(sort: Desc)])
+}
+
+model CoachMessage {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        String
+  content     String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model JournalEntry {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt         String?
+  content        String
+  aiReflection   String?
+  tags           String[]
+  emotionalTone  String?
+  linkedState    String?
+  createdAt      DateTime @default(now())
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model SleepLog {
+  id                  String   @id @default(cuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date                DateTime @db.Date
+  eveningProtocolDone Boolean  @default(false)
+  bedTime             String?
+  preStressLevel      Int?
+  screenFreeMinutes   Int?
+  eveningNotes        String?
+  wakeTime            String?
+  sleepQuality        Int?
+  sleepDuration       Float?
+  wakeFeeling         String?
+  dreamActivity       String?
+  morningNotes        String?
+  sleepScore          Int?
+  createdAt           DateTime @default(now())
+  @@unique([userId, date])
+  @@index([userId, date(sort: Desc)])
+}
+
+model Program {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  description     String
+  durationWeeks   Int
+  targetAudience  String
+  difficulty      String   @default("beginner")
+  modules         Json
+  isPremium       Boolean  @default(false)
+  imageUrl        String?
+  enrollmentCount Int      @default(0)
+  avgCompletionRate Float  @default(0)
+  createdAt       DateTime @default(now())
+  enrollments     ProgramEnrollment[]
+}
+
+model ProgramEnrollment {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programId       String
+  program         Program   @relation(fields: [programId], references: [id])
+  startedAt       DateTime  @default(now())
+  currentDay      Int       @default(1)
+  completedDays   Int[]
+  completedAt     DateTime?
+  status          String    @default("active")
+  @@unique([userId, programId])
+  @@index([userId])
+}
+
+model Glimmer {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content     String
+  category    String?
+  createdAt   DateTime @default(now())
+  @@index([userId, createdAt(sort: Desc)])
+}
